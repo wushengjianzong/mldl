@@ -85,10 +85,10 @@ class DQN:
 
  
 if __name__ == '__main__':
-    N_iteration = 10
+    N_episodes = 100
     dqn = DQN()
  
-    for episode in range(500):
+    for episode in range(N_episodes):
         prev_state: np.ndarray = env.reset()
         sum_reward = 0
  
