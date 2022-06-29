@@ -9,6 +9,7 @@ from torch import Tensor
 from torch.optim import Adam
 from torch.nn.functional import relu
  
+
 BatchSize = 32
 LearningRate = 0.01
 Epsilon = 0.9
@@ -20,6 +21,7 @@ env = gym.make('CartPole-v0').unwrapped
 N_actions: int = env.action_space.n
 N_states: int = env.observation_space.shape[0]
  
+
 class Net(nn.Module):
  
     def __init__(self):
@@ -54,8 +56,8 @@ class DQN:
             action: np.int64 = max_index.numpy()[0]
         return action
    
-    def store(self, prev: np.ndarray, action: np.int64, reward: float, curr: np.ndarray):
-        transition: np.ndarray = np.hstack((prev, [action, reward], curr))
+    def store(self, prev_state: np.ndarray, action: np.int64, reward: float, curr_state: np.ndarray):
+        transition: np.ndarray = np.hstack((prev_state, [action, reward], curr_state))
         index = self.memory_count % MemoryCapacity
         self.memory[index] = transition
         self.memory_count += 1
@@ -68,14 +70,14 @@ class DQN:
         sample_indices: np.ndarray = np.random.choice(MemoryCapacity, BatchSize)
         sample_memory: np.ndarray = self.memory[sample_indices, :]
         
-        batch_prev: Tensor = torch.FloatTensor(sample_memory[:, :N_states])
-        batch_action: Tensor = torch.LongTensor(sample_memory[:, N_states:N_states+1].astype(int))
-        batch_raward: Tensor = torch.FloatTensor(sample_memory[:, N_states+1:N_states+2])
-        batch_next: Tensor = torch.FloatTensor(sample_memory[:, -N_states:])
+        batch_prev_state = torch.FloatTensor(sample_memory[:, :N_states])
+        batch_action = torch.LongTensor(sample_memory[:, N_states:N_states+1].astype(int))
+        batch_raward = torch.FloatTensor(sample_memory[:, N_states+1:N_states+2])
+        batch_curr_state = torch.FloatTensor(sample_memory[:, -N_states:])
         
         # ipdb.set_trace()
-        q_eval: Tensor = self.eval_net(batch_prev).gather(1, batch_action)
-        q_next: Tensor = self.target_net(batch_next).detach()
+        q_eval: Tensor = self.eval_net(batch_prev_state).gather(1, batch_action)
+        q_next: Tensor = self.target_net(batch_curr_state).detach()
         q_target: Tensor = batch_raward + Gamma * q_next.max(dim=1)[0].view(BatchSize, 1)
         
         loss: Tensor = self.loss_function(q_eval, q_target)
@@ -97,17 +99,17 @@ if __name__ == '__main__':
 
             action: np.int64 = dqn.action(prev_state)
             step_result: Tuple[np.ndarray, float, bool, dict] = env.step(action)
-            next_state: np.ndarray = step_result[0]
+            curr_state: np.ndarray = step_result[0]
             done: bool = step_result[2]
             
-            x, _, t, _ = next_state
+            x, _, t, _ = curr_state
             r1 = (env.x_threshold - abs(x)) / env.x_threshold - 0.8
             r2 = (env.theta_threshold_radians - abs(t)) / env.theta_threshold_radians - 0.5
             reward = r1 + r2
             
-            dqn.store(prev_state, action, reward, next_state)
+            dqn.store(prev_state, action, reward, curr_state)
             sum_reward += reward
-            prev_state = next_state
+            prev_state = curr_state
 
             if dqn.memory_count > MemoryCapacity:
                 dqn.learn()
